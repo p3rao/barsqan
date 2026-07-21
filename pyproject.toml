@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "BC-sqan"
+version = "0.1.0"
+description = "Extract, filter, cluster, and cross-sample map amplicon barcodes from FASTQ files"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "regex>=2023.0",
+    "rapidfuzz>=3.0",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+bctoolkit = "BC-sqan.cli:main"
+
+[tool.setuptools]
+packages = ["BC-sqan"]

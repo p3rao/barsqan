@@ -1,0 +1,198 @@
+# BC-sqan
+
+A single, installable package that replaces the four standalone scripts
+(`extract_BC.py`, `filter_extedBC_by_intidx_BCmotif.py`,
+`cluster_n_count_bcs_collapseUMI.py`, `map_barcode_overlap.py`) with one
+consistent pipeline, driven by **sample names** instead of hardcoded file
+paths, and by **one config object** instead of constants duplicated (and
+occasionally drifting out of sync, e.g. the barcode motif) across files.
+
+## Pipeline
+
+```
+samples.txt + FASTQ dir
+        │
+        ▼
+ [1] extract   -- find each sample's FASTQ file(s), auto-detect SE/PE,
+   │              extract Index1/UMI1/Barcode(+Index2/UMI2 for PE),
+   │              validate read structure + (for PE) R1/R2 downstream
+   │              overlap. Tallies unmatched ("off-target") sequences.
+   ▼
+ {sample}.parsed.tsv, {sample}.stats.tsv, {sample}.unmatched.tsv
+        │
+        ▼
+ [2] filter    -- (optional) tolerant re-check: does the internal index
+   │              match the *expected* index for this sample? Does the
+   │              barcode still satisfy the motif with some mismatch
+   │              tolerance? Flags index cross-talk / bleed.
+   ▼
+ kept/{sample}.kept.tsv, filtered/{sample}.filtered.tsv, filter_summary.csv
+        │
+        ▼
+ [3] cluster   -- collapse near-identical UMIs (sequencing error), then
+   │              cluster barcode sequencing-error variants into their
+   │              most-abundant "true" barcode (Levenshtein distance).
+   ▼
+ {sample}.corrected_barcodes.csv
+        │
+        ▼
+ [4] map       -- (optional) build a barcode x sample matrix + summary of
+                  which barcodes are shared across which sample names.
+   ▼
+ barcode_x_sample_counts.csv, barcode_x_sample_freq.csv, barcode_overlap_summary.csv
+```
+
+Steps 1 and 3 are always run; steps 2 and 4 are optional (skip step 2 if
+you don't have/need an expected-index map; skip step 4 if you only care
+about per-sample barcode counts).
+
+## Install
+
+```bash
+cd BC-sqan
+pip install -e .
+```
+
+This installs the `BC-sqan` command (and the `BC-sqan` Python package,
+if you'd rather import the modules directly).
+
+## Quick start
+
+```bash
+# 1) One sample name per line. Names are matched against FASTQ filenames
+#    at token boundaries, so "Col-1" will NOT accidentally match "Col-10".
+cat > samples.txt <<EOF
+PR_pilot_Col-10_S31_L001
+PR_pilot_Col-11_S32_L001
+EOF
+
+# 2) Run the whole pipeline in one command.
+BC-sqan run \
+    --samples samples.txt \
+    --fastq-dir /path/to/fastqs \
+    --outdir results/ \
+    --index-map index_map.csv \
+    --do-map \
+    --config my_config.yaml
+```
+
+`index_map.csv` (only needed if you use `--index-map` / the `filter` step):
+
+```csv
+sample,expected_index
+PR_pilot_Col-10_S31_L001,GCCAATTTAGGC
+PR_pilot_Col-11_S32_L001,CTAAGGCATTAG
+```
+
+For single-end samples the expected index is just the 6bp `Index1` (or
+whatever `index1_len` you configure); for paired-end it's `Index1+Index2`
+concatenated.
+
+Results land in:
+
+```
+results/1_extracted/   {sample}.parsed.tsv, .stats.tsv, .unmatched.tsv
+results/2_filtered/    kept/{sample}.kept.tsv, filtered/{sample}.filtered.tsv, filter_summary.csv
+results/3_clustered/   {sample}.corrected_barcodes.csv
+results/4_mapped/      barcode_x_sample_counts.csv, barcode_x_sample_freq.csv, barcode_overlap_summary.csv
+```
+
+## Single-end vs paired-end
+
+`--mode auto` (the default) inspects, for each sample name, how many FASTQ
+files matched it:
+
+- **two** files, one containing `_R1_`/`_R1.`/`_1.fastq` and the other
+  `_R2_`/`_R2.`/`_2.fastq` → treated as **paired-end**.
+- **one** file → treated as **single-end**.
+
+You can force `--mode se` or `--mode pe` if you want extraction to fail
+loudly instead of silently guessing (e.g. you expect every sample to be
+paired-end and want to be told if an R2 is missing).
+
+In single-end mode, only the R1 structure is required
+(`Index1+UMI1+Primer1+Barcode`); there is no R2 downstream-overlap check
+(nothing to compare against), so the pass/fail stats only report
+`quality_fail` / `regex_fail`.
+
+## Running steps individually
+
+```bash
+BC-sqan extract  --samples samples.txt --fastq-dir fastqs/ --outdir out/extracted --config cfg.yaml
+BC-sqan filter   --parsed-dir out/extracted --index-map index_map.csv --outdir out/filtered --config cfg.yaml
+BC-sqan cluster  --input-dir out/filtered/kept --outdir out/clustered --config cfg.yaml
+BC-sqan map      --counts-dir out/clustered --outdir out/mapped
+```
+
+(If you skip `filter`, point `cluster --input-dir` at `out/extracted`
+instead of `out/filtered/kept`.)
+
+## Configuring your amplicon design
+
+Every primer sequence, index/UMI length, barcode motif, quality threshold,
+overlap window, and clustering tolerance lives in one place:
+[`BC-sqan/config.py`](BC-sqan/config.py). Copy
+[`config.example.yaml`](config.example.yaml), edit only the keys you want
+to change, and pass it with `--config` to any subcommand. Unlisted keys
+keep their default.
+
+Key ones you'll likely need to change for a new design:
+
+| Key | Meaning |
+|---|---|
+| `inner_p1_primer` / `inner_p2_primer` | The primer sequences flanking the barcode / downstream region |
+| `barcode_motif` | e.g. `"NNNNNacNNNNNgaNNNNNtcNNNNN"` — `N` = wildcard, lowercase = fixed base. Used to build **both** the strict extraction regex and the tolerant filter re-check, so they can't drift apart. |
+| `index1_len`, `umi1_len`, `index2_len`, `umi2_len` | Fixed-length index/UMI segments |
+| `qmin` | Minimum Phred quality required across index+UMI+primer(+barcode) |
+| `overlap_k`, `overlap_max_mismatch` | Paired-end R1/R2 downstream-overlap validation |
+| `cluster_max_dist`, `cluster_merge_ratio`, `cluster_protect_count` | Barcode error-collapsing tolerances |
+
+## Diagnosing low pass rates
+
+If `passed` is low relative to `total_reads` in a sample's `.stats.tsv`:
+
+1. Check `quality_fail` vs `regex_fail` vs `overlap_fail` — they're counted
+   independently and printed in that order, so you know which stage to
+   investigate first.
+2. Look at `{sample}.unmatched.tsv` — the most frequent R1 prefixes that
+   failed the structural regex. Recurring sequences here usually point to
+   an off-target amplicon, a shifted primer/index length, or a barcode
+   motif that doesn't match your actual design (see the barcode-motif
+   discussion in the original design conversation for an example of this
+   exact failure mode).
+3. For `overlap_fail`, temporarily raise `overlap_max_mismatch` or lower
+   `overlap_k` to see whether reads are close-but-not-quite passing
+   (likely a real design/offset issue) vs. wildly different (likely
+   contamination or a wrong primer).
+
+## Example / smoke test
+
+`example_data/make_test_data.py` generates a small synthetic paired-end +
+single-end FASTQ set (two PE samples sharing two barcodes, one SE sample)
+that exercises every pipeline stage, including reads engineered to fail
+each filter. Run it, then run the pipeline on the output to see the
+expected shape of every output file:
+
+```bash
+cd example_data
+python3 make_test_data.py
+cd ..
+BC-sqan run \
+    --samples example_data/samples.txt \
+    --fastq-dir example_data \
+    --outdir example_data/results \
+    --index-map example_data/index_map.csv \
+    --do-map \
+    --config config.example.yaml
+```
+
+## Requirements
+
+- Python >= 3.8
+- `regex` (fuzzy/edit-distance regex matching)
+- `rapidfuzz` (fast Levenshtein distance for barcode clustering)
+- `pyyaml` (config file loading)
+
+```bash
+pip install -r requirements.txt
+```

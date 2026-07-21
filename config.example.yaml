@@ -1,0 +1,41 @@
+# Example BC-sqan config. Copy, rename, and edit any subset of these keys
+# for your amplicon design; omitted keys keep the defaults in BC-sqan/config.py.
+# Pass with --config path/to/this_file.yaml on any subcommand.
+
+# ---- Read layout ----
+index1_len: 6
+umi1_len: 8
+index2_len: 6
+umi2_len: 8
+
+inner_p1_primer: "GCCACTCGAGCACCTAGGAGG"
+inner_p2_primer: "AATCAGTCCAGTTATGCTGTGAA"
+primer1_max_edits: 3
+primer2_max_edits: 3
+
+# ---- Barcode motif ----
+# Uppercase N = wildcard base, lowercase letters = fixed bases.
+barcode_motif: "NNNNNacNNNNNgaNNNNNtcNNNNN"
+
+# ---- Paired-end overlap validation ----
+downstream_min_len: 20
+overlap_k: 20
+overlap_max_mismatch: 4
+
+# ---- Quality filtering ----
+qmin: 25
+
+# ---- Internal-index filtering ----
+index_chunk_len: 6
+index_max_mismatch: 1
+motif_max_mismatch: 1
+
+# ---- UMI collapsing / barcode clustering ----
+umi_group_len: 8
+umi_group_max_dist: 1
+cluster_max_dist: 2
+cluster_merge_ratio: 0.10
+cluster_protect_count: 25
+
+# ---- Misc ----
+top_unmatched_n: 50
