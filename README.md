@@ -177,7 +177,7 @@ expected shape of every output file:
 cd example_data
 python3 make_test_data.py
 cd ..
-bcsqann run \
+bcsqan run \
     --samples example_data/samples.txt \
     --fastq-dir example_data \
     --outdir example_data/results \
