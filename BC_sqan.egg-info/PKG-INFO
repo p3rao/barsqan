@@ -1,3 +1,13 @@
+Metadata-Version: 2.4
+Name: BC-sqan
+Version: 0.1.0
+Summary: Extract, filter, cluster, and cross-sample map amplicon barcodes from FASTQ files
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: regex>=2023.0
+Requires-Dist: rapidfuzz>=3.0
+Requires-Dist: pyyaml>=6.0
+
 # BC-sqan
 
 A single, installable package that replaces the four standalone scripts
@@ -53,7 +63,7 @@ cd BC-sqan
 pip install -e .
 ```
 
-This installs the `bcsqan` command (and the `bcsqan` Python package,
+This installs the `BC-sqan` command (and the `BC-sqan` Python package,
 if you'd rather import the modules directly).
 
 ## Quick start
@@ -67,7 +77,7 @@ PR_pilot_Col-11_S32_L001
 EOF
 
 # 2) Run the whole pipeline in one command.
-bcsqan run \
+BC-sqan run \
     --samples samples.txt \
     --fastq-dir /path/to/fastqs \
     --outdir results/ \
@@ -118,10 +128,10 @@ In single-end mode, only the R1 structure is required
 ## Running steps individually
 
 ```bash
-bcsqan extract  --samples samples.txt --fastq-dir fastqs/ --outdir out/extracted --config cfg.yaml
-bcsqan filter   --parsed-dir out/extracted --index-map index_map.csv --outdir out/filtered --config cfg.yaml
-bcsqan cluster  --input-dir out/filtered/kept --outdir out/clustered --config cfg.yaml
-bcsqan map      --counts-dir out/clustered --outdir out/mapped
+BC-sqan extract  --samples samples.txt --fastq-dir fastqs/ --outdir out/extracted --config cfg.yaml
+BC-sqan filter   --parsed-dir out/extracted --index-map index_map.csv --outdir out/filtered --config cfg.yaml
+BC-sqan cluster  --input-dir out/filtered/kept --outdir out/clustered --config cfg.yaml
+BC-sqan map      --counts-dir out/clustered --outdir out/mapped
 ```
 
 (If you skip `filter`, point `cluster --input-dir` at `out/extracted`
@@ -131,7 +141,7 @@ instead of `out/filtered/kept`.)
 
 Every primer sequence, index/UMI length, barcode motif, quality threshold,
 overlap window, and clustering tolerance lives in one place:
-[`bcsqann/config.py`](bcsqann/config.py). Copy
+[`BC-sqan/config.py`](BC-sqan/config.py). Copy
 [`config.example.yaml`](config.example.yaml), edit only the keys you want
 to change, and pass it with `--config` to any subcommand. Unlisted keys
 keep their default.
@@ -177,7 +187,7 @@ expected shape of every output file:
 cd example_data
 python3 make_test_data.py
 cd ..
-bcsqann run \
+BC-sqan run \
     --samples example_data/samples.txt \
     --fastq-dir example_data \
     --outdir example_data/results \

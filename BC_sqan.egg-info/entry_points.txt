@@ -1,0 +1,2 @@
+[console_scripts]
+bcsqan = bcsqan.cli:main
