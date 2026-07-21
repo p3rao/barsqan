@@ -24,7 +24,7 @@ def test_full_pipeline(tmp_path=None):
         shutil.rmtree(outdir)
 
     run([
-        sys.executable, "-m", "BC-sqan.cli", "run",
+        sys.executable, "-m", "bcsqan.cli", "run",
         "--samples", os.path.join(EXAMPLE_DIR, "samples.txt"),
         "--fastq-dir", EXAMPLE_DIR,
         "--outdir", outdir,

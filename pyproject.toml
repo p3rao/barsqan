@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-bctoolkit = "BC-sqan.cli:main"
+bcsqan = "bcsqan.cli:main"
 
 [tool.setuptools]
-packages = ["BC-sqan"]
+packages = ["bcsqan"]
