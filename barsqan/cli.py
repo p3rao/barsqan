@@ -1,5 +1,5 @@
 """
-Command-line interface for BC-sqan.
+Command-line interface for barsqan.
 
 Subcommands:
   extract   - find sample FASTQ files, extract index/UMI/barcode -> {sample}.parsed.tsv
@@ -128,7 +128,7 @@ def cmd_run(args):
 
 
 def build_parser():
-    p = argparse.ArgumentParser(prog="BC-sqan", description=__doc__)
+    p = argparse.ArgumentParser(prog="barsqan", description=__doc__)
     sub = p.add_subparsers(dest="command", required=True)
 
     common_cfg = dict(default=None, help="Optional YAML config overriding defaults in config.py")

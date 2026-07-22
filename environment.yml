@@ -1,0 +1,19 @@
+# Conda environment for barsqan.
+#
+# Create and install everything in one step:
+#     conda env create -f environment.yml
+#     conda activate barsqan
+#     barsqan --help
+#
+# All runtime dependencies come from conda-forge; only barsqan itself is
+# installed via pip (from this source tree) with --no-deps so pip does not
+# try to re-resolve the conda-provided packages.
+name: barsqan
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.9
+  - regex>=2023.0
+  - rapidfuzz>=3.0
+  - pyyaml>=6.0
+  - pip

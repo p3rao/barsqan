@@ -1,0 +1,50 @@
+{% set name = "barsqan" %}
+{% set version = "0.1.0" %}
+
+# Conda-build recipe for barsqan.
+#
+# Build a real conda package from the project root:
+#     conda install -n base conda-build          # if not already available
+#     conda build conda-recipe/ -c conda-forge
+#
+# Then install the locally built package into an environment:
+#     conda create -n barsqan -c conda-forge python>=3.9
+#     conda activate barsqan
+#     conda install --use-local -c conda-forge barsqan
+
+package:
+  name: {{ name }}
+  version: {{ version }}
+
+source:
+  # Build from the source tree one directory up from this recipe.
+  path: ..
+
+build:
+  noarch: python
+  number: 0
+  script: {{ PYTHON }} -m pip install . --no-deps --ignore-installed -vv
+  entry_points:
+    - barsqan = barsqan.cli:main
+
+requirements:
+  host:
+    - python >=3.9
+    - pip
+    - setuptools >=61.0
+  run:
+    - python >=3.9
+    - regex >=2023.0
+    - rapidfuzz >=3.0
+    - pyyaml >=6.0
+
+test:
+  imports:
+    - barsqan
+  commands:
+    - barsqan --help
+
+about:
+  home: https://example.com/barsqan
+  summary: Extract, filter, cluster, and cross-sample map amplicon barcodes from FASTQ files
+  license: MIT

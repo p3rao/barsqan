@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate small synthetic FASTQ files to smoke-test the bctoolkit pipeline.
+"""Generate small synthetic FASTQ files to smoke-test the barsqan pipeline.
 
 Creates:
   Sample_A_S1_L001_R1_001.fastq.gz / _R2_001.fastq.gz   (paired-end)

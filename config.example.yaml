@@ -1,5 +1,5 @@
-# Example BC-sqan config. Copy, rename, and edit any subset of these keys
-# for your amplicon design; omitted keys keep the defaults in BC-sqan/config.py.
+# Example bctoolkit config. Copy, rename, and edit any subset of these keys
+# for your amplicon design; omitted keys keep the defaults in bctoolkit/config.py.
 # Pass with --config path/to/this_file.yaml on any subcommand.
 
 # ---- Read layout ----

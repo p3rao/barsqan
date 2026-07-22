@@ -1,4 +1,4 @@
-# BC-sqan
+# barsqan
 
 A single, installable package that replaces the four standalone scripts
 (`extract_BC.py`, `filter_extedBC_by_intidx_BCmotif.py`,
@@ -48,13 +48,68 @@ about per-sample barcode counts).
 
 ## Install
 
+### Conda (recommended)
+
+The fastest path — creates a conda environment named `barsqan`, installs all
+runtime dependencies from conda-forge, and installs the `barsqan` CLI into it
+in one command:
+
 ```bash
-cd BC-sqan
-pip install -e .
+cd barsqan
+conda env create -f environment.yml
+conda activate barsqan
+barsqan --help
 ```
 
-This installs the `bcsqan` command (and the `bcsqan` Python package,
-if you'd rather import the modules directly).
+To update the environment later (after editing `environment.yml` or pulling
+new code):
+
+```bash
+conda env update -f environment.yml --prune
+```
+
+Prefer to build the environment by hand? Do it manually:
+
+```bash
+conda create -n barsqan -c conda-forge python">=3.9" regex rapidfuzz pyyaml pip
+conda activate barsqan
+cd barsqan
+pip install --no-deps .          # install just barsqan; deps came from conda
+```
+
+For a development environment that also includes `pytest` (and installs
+`barsqan` in editable mode):
+
+```bash
+conda env create -f environment-dev.yml
+conda activate barsqan-dev
+pytest tests/
+```
+
+#### Building a real conda package
+
+If you'd rather distribute `barsqan` as a conda package (so it can be
+`conda install`ed like any other), a conda-build recipe is included:
+
+```bash
+conda install -n base conda-build       # if you don't already have it
+conda build conda-recipe/ -c conda-forge
+
+# then install the locally built package into a fresh env:
+conda create -n barsqan -c conda-forge python">=3.9"
+conda activate barsqan
+conda install --use-local -c conda-forge barsqan
+```
+
+### pip
+
+```bash
+cd barsqan
+pip install .          # or: pip install -e .  for an editable/dev install
+```
+
+Either route installs the `barsqan` command (and the `barsqan` Python
+package, if you'd rather import the modules directly).
 
 ## Quick start
 
@@ -67,7 +122,7 @@ PR_pilot_Col-11_S32_L001
 EOF
 
 # 2) Run the whole pipeline in one command.
-bcsqan run \
+barsqan run \
     --samples samples.txt \
     --fastq-dir /path/to/fastqs \
     --outdir results/ \
@@ -118,10 +173,10 @@ In single-end mode, only the R1 structure is required
 ## Running steps individually
 
 ```bash
-bcsqan extract  --samples samples.txt --fastq-dir fastqs/ --outdir out/extracted --config cfg.yaml
-bcsqan filter   --parsed-dir out/extracted --index-map index_map.csv --outdir out/filtered --config cfg.yaml
-bcsqan cluster  --input-dir out/filtered/kept --outdir out/clustered --config cfg.yaml
-bcsqan map      --counts-dir out/clustered --outdir out/mapped
+barsqan extract  --samples samples.txt --fastq-dir fastqs/ --outdir out/extracted --config cfg.yaml
+barsqan filter   --parsed-dir out/extracted --index-map index_map.csv --outdir out/filtered --config cfg.yaml
+barsqan cluster  --input-dir out/filtered/kept --outdir out/clustered --config cfg.yaml
+barsqan map      --counts-dir out/clustered --outdir out/mapped
 ```
 
 (If you skip `filter`, point `cluster --input-dir` at `out/extracted`
@@ -131,7 +186,7 @@ instead of `out/filtered/kept`.)
 
 Every primer sequence, index/UMI length, barcode motif, quality threshold,
 overlap window, and clustering tolerance lives in one place:
-[`bcsqann/config.py`](bcsqann/config.py). Copy
+[`barsqan/config.py`](barsqan/config.py). Copy
 [`config.example.yaml`](config.example.yaml), edit only the keys you want
 to change, and pass it with `--config` to any subcommand. Unlisted keys
 keep their default.
@@ -177,7 +232,7 @@ expected shape of every output file:
 cd example_data
 python3 make_test_data.py
 cd ..
-bcsqan run \
+barsqan run \
     --samples example_data/samples.txt \
     --fastq-dir example_data \
     --outdir example_data/results \
@@ -188,10 +243,13 @@ bcsqan run \
 
 ## Requirements
 
-- Python >= 3.8
+- Python >= 3.9
 - `regex` (fuzzy/edit-distance regex matching)
 - `rapidfuzz` (fast Levenshtein distance for barcode clustering)
 - `pyyaml` (config file loading)
+
+All three are available on both conda-forge and PyPI. Via conda they are
+installed for you by `environment.yml`; via pip:
 
 ```bash
 pip install -r requirements.txt
