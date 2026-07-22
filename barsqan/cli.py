@@ -73,6 +73,8 @@ def cmd_cluster(args):
     os.makedirs(args.outdir, exist_ok=True)
 
     import glob
+    from .distance import backend_name
+    print(f"[cluster] edit-distance backend: {backend_name()}", file=sys.stderr)
     input_files = sorted(glob.glob(os.path.join(args.input_dir, "*.tsv")))
     if not input_files:
         print(f"[cluster] No .tsv files found in {args.input_dir}", file=sys.stderr)
