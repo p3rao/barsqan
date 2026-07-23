@@ -22,7 +22,7 @@ from .fastq_io import find_sample_files
 from .extract import extract_sample
 from .filter_reads import filter_sample, load_expected_index_map, write_summaries, FilterCounts
 from .cluster_umi import cluster_sample
-from .map_overlap import load_all_counts, write_overlap_outputs
+from .map_overlap import load_all_counts, write_overlap_outputs, plot_count_distributions
 
 
 def _read_sample_names(path: str):
@@ -89,10 +89,22 @@ def cmd_cluster(args):
 
 
 def cmd_map(args):
-    barcode_sample_counts = load_all_counts(args.counts_dir, min_count=args.min_count)
+    dist = {} if getattr(args, "plot", False) else None
+    barcode_sample_counts = load_all_counts(
+        args.counts_dir,
+        min_count=args.min_count,
+        min_rel_abundance=args.min_rel_abundance,
+        relative_to=args.relative_to,
+        dist_out=dist,
+    )
     write_overlap_outputs(barcode_sample_counts, args.outdir)
     n_samples = len({s for c in barcode_sample_counts.values() for s in c})
     print(f"[map] {len(barcode_sample_counts)} distinct barcodes across {n_samples} samples -> {args.outdir}", file=sys.stderr)
+
+    if dist is not None:
+        pngs = plot_count_distributions(dist, args.outdir, args.min_rel_abundance)
+        if pngs:
+            print(f"[map] wrote {len(pngs)} distribution plot(s) -> {os.path.join(args.outdir, 'plots')}", file=sys.stderr)
 
 
 def cmd_run(args):
@@ -123,7 +135,13 @@ def cmd_run(args):
     cmd_cluster(cluster_args)
 
     if args.do_map:
-        map_args = argparse.Namespace(counts_dir=cluster_dir, outdir=map_dir, min_count=args.map_min_count)
+        map_args = argparse.Namespace(
+            counts_dir=cluster_dir, outdir=map_dir,
+            min_count=args.map_min_count,
+            min_rel_abundance=args.map_min_rel_abundance,
+            relative_to=args.map_relative_to,
+            plot=args.map_plot,
+        )
         cmd_map(map_args)
     else:
         print("[run] --do-map not set, skipping cross-sample mapping step.", file=sys.stderr)
@@ -163,6 +181,17 @@ def build_parser():
     p_map.add_argument("--outdir", required=True)
     p_map.add_argument("--min-count", type=int, default=2,
                         help="Minimum per-sample count for a barcode to be included (default 2)")
+    p_map.add_argument("--min-rel-abundance", type=float, default=0.0,
+                        help="Per sample, drop barcodes whose within-sample frequency is below "
+                             "this fraction of the sample's mean/median barcode frequency "
+                             "(e.g. 0.05 = drop barcodes below 5%% of the median). This is a "
+                             "value threshold and may drop any fraction of barcodes. "
+                             "Default 0 = disabled.")
+    p_map.add_argument("--relative-to", choices=["mean", "median"], default="median",
+                        help="Reference statistic for --min-rel-abundance (default median).")
+    p_map.add_argument("--plot", action="store_true",
+                        help="Write a per-sample histogram of log10(within-sample frequency) "
+                             "with the relative-abundance cutoff marked, to <outdir>/plots/.")
     p_map.set_defaults(func=cmd_map)
 
     p_run = sub.add_parser("run", help="Run the full pipeline: extract -> [filter] -> cluster -> [map]")
@@ -173,6 +202,15 @@ def build_parser():
     p_run.add_argument("--index-map", default=None, help="If given, run the filter step; else skip it")
     p_run.add_argument("--do-map", action="store_true", help="Also run the cross-sample mapping step")
     p_run.add_argument("--map-min-count", type=int, default=2)
+    p_run.add_argument("--map-min-rel-abundance", type=float, default=0.0,
+                        help="Per sample, drop barcodes whose within-sample frequency is below "
+                             "this fraction of the sample's mean/median barcode frequency "
+                             "(e.g. 0.05). Value threshold; may drop any fraction of barcodes. "
+                             "Default 0 = disabled.")
+    p_run.add_argument("--map-relative-to", choices=["mean", "median"], default="median",
+                        help="Reference statistic for --map-min-rel-abundance (default median).")
+    p_run.add_argument("--map-plot", action="store_true",
+                        help="Write per-sample count-distribution plots with the cutoff marked.")
     p_run.add_argument("--config", **common_cfg)
     p_run.set_defaults(func=cmd_run)
 

@@ -58,7 +58,7 @@ in one command:
 cd barsqan
 conda env create -f environment.yml
 conda activate barsqan
-pip install --no-deps .
+pip install --no-deps -e .
 barsqan --help
 ```
 
@@ -175,6 +175,68 @@ barsqan map      --counts-dir out/clustered --outdir out/mapped
 (If you skip `filter`, point `cluster --input-dir` at `out/extracted`
 instead of `out/filtered/kept`.)
 
+### Filtering low-abundance barcodes before mapping
+
+Before pooling each sample's barcodes into the cross-sample overlap matrix,
+you can drop barcodes whose within-sample abundance is too low *relative to
+the rest of that sample* with `--min-rel-abundance`. This is a **value
+threshold**: within each sample, drop every barcode whose within-sample
+frequency is below `fraction × (mean|median barcode frequency)`. It removes
+the long low-abundance tail (likely sequencing error / contamination) per
+sample, so a barcode that is truly abundant in one sample but only a
+low-abundance straggler in another is not spuriously reported as "shared":
+
+```bash
+# drop barcodes below 5% of the sample's mean barcode frequency
+barsqan map --counts-dir out/clustered --outdir out/mapped \
+    --min-rel-abundance 0.05 --relative-to mean --plot
+
+# same options are available in the full pipeline
+barsqan run ... --do-map --map-min-rel-abundance 0.05 --map-relative-to mean --map-plot
+```
+
+How it works and how it stacks with `--min-count`:
+
+- `--min-count N` (default 2) is applied **first**, per barcode: any barcode
+  with fewer than N reads in a sample is dropped outright.
+- `--min-rel-abundance F` is then applied **per sample**: the reference
+  statistic (mean or median of the sample's per-barcode within-sample
+  frequencies) is computed, and every barcode whose frequency is **strictly
+  below `F × reference`** is dropped. `F = 0` (default) disables it.
+- `--relative-to {mean,median}` (default `median`) selects the reference
+  statistic. **This choice matters a lot on skewed data:**
+  - `median` is robust, but if the low-abundance tail makes up more than
+    half the barcodes the median itself sits *inside* the tail, so a small
+    fraction of it may drop nothing. Use a larger `F` (e.g. `0.5`) with
+    median, or switch to mean.
+  - `mean` is pulled up by the real high-count barcodes, so `0.05 × mean`
+    typically lands in the gap between the tail and the real population —
+    good for cleanly removing a large low-abundance tail.
+- This is a **value threshold, not a fixed fraction**: it drops *however
+  many* barcodes fall below the cutoff. That can be 5% or 90% of the
+  barcodes in the file — exactly the point, if most barcodes really are
+  low-abundance noise.
+- A sample with only one barcode is never filtered.
+- The `map` step logs the threshold and how many barcodes each sample lost:
+  `[map] Col-10_S31: dropped 400/700 (57.1%) barcodes below 0.05xmean (mean freq=1.429e-03, cutoff freq=7.143e-05)`.
+
+#### Distribution plots (`--plot`)
+
+With `--plot` (or `--map-plot` in the full pipeline), barsqan writes one
+histogram per sample to `<outdir>/plots/{sample}.count_distribution.png`.
+Each plot shows the distribution of `log10(within-sample frequency)` across
+that sample's barcodes, with kept barcodes (blue) and barcodes removed by
+the relative-abundance filter (red) drawn as a stacked histogram. A dashed
+line marks the cutoff (`F × reference`) and a dotted line marks the
+reference statistic (mean/median) itself. This makes it easy to see whether
+the chosen threshold cleanly separates the low-abundance tail from the real
+population, or whether you should adjust `--min-rel-abundance` /
+`--relative-to`.
+
+Plotting requires `matplotlib`. It is included in the conda environment
+files; if it is not installed, the `map` step still produces all CSVs and
+just prints a note that plots were skipped.
+
 ## Configuring your amplicon design
 
 Every primer sequence, index/UMI length, barcode motif, quality threshold,
@@ -234,9 +296,51 @@ barsqan run \
     --config config.example.yaml
 ```
 
+## Troubleshooting
+
+### Clustering seems to hang / is extremely slow
+
+The `cluster` step corrects sequencing errors by computing edit distances
+between barcodes. It uses `rapidfuzz`, which normally runs a fast compiled
+C backend. On very new Python interpreters (e.g. **Python 3.14**, before
+rapidfuzz publishes wheels for it) rapidfuzz silently falls back to a
+**pure-Python** backend that is ~100x slower. Combined with a large number
+of distinct barcodes, that can make clustering look frozen.
+
+barsqan handles this in two ways:
+
+- It uses a **pigeonhole block index** so each low-count barcode variant is
+  only compared against the handful of candidate parents that share a
+  sequence block with it — not against every other barcode. This keeps
+  clustering near-linear (tens of thousands of barcodes cluster in ~1-2s
+  even on the pure-Python backend).
+- If the compiled rapidfuzz backend is missing, it falls back to a
+  **self-contained bounded (banded) Levenshtein** with an early-exit
+  cutoff, so performance never depends on a compiled extension being
+  present.
+
+The `cluster` step prints which backend is active:
+
+```
+[cluster] edit-distance backend: rapidfuzz-cpp        # fast compiled path
+[cluster] edit-distance backend: pure-python-bounded  # fallback (still fast here)
+```
+
+To guarantee the fast compiled path, use a Python version rapidfuzz ships
+wheels for. The provided `environment.yml` pins `python>=3.9,<3.13` for
+exactly this reason. If you already built an env on Python 3.14, recreate
+it:
+
+```bash
+conda deactivate
+conda env remove -n barsqan
+conda env create -f environment.yml   # gets a rapidfuzz-supported Python
+conda activate barsqan
+```
+
 ## Requirements
 
-- Python >= 3.9
+- Python >= 3.9 (use < 3.13 for rapidfuzz's fast compiled backend)
 - `regex` (fuzzy/edit-distance regex matching)
 - `rapidfuzz` (fast Levenshtein distance for barcode clustering)
 - `pyyaml` (config file loading)

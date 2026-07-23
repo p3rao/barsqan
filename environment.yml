@@ -12,8 +12,12 @@ name: barsqan
 channels:
   - conda-forge
 dependencies:
-  - python>=3.9
+  # Pin to a Python for which rapidfuzz ships a compiled wheel/conda package.
+  # On bleeding-edge interpreters (e.g. 3.14) rapidfuzz silently falls back to
+  # a pure-Python backend that is ~100x slower for the clustering step.
+  - python>=3.9,<3.13
   - regex>=2023.0
   - rapidfuzz>=3.0
   - pyyaml>=6.0
+  - matplotlib>=3.5   # for `map --plot` per-sample distribution plots
   - pip
